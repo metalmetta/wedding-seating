@@ -218,6 +218,20 @@
       .main { padding: 12px; }
     }
 
+    /* ── SYNC & PRESENCE ── */
+    .sync-dot {
+      width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+      background: #ccc; transition: background 0.3s; flex-shrink: 0; margin: 0 2px;
+    }
+    .sync-dot.synced  { background: #6dbf7e; }
+    .sync-dot.pending { background: var(--gold); }
+    .sync-dot.saving  { background: var(--rose); animation: sync-pulse 0.7s infinite alternate; }
+    @keyframes sync-pulse { from { opacity: 1; } to { opacity: 0.35; } }
+    .online-chip {
+      font-size: 0.76rem; color: var(--text-muted); padding: 2px 9px;
+      background: var(--rose-light); border-radius: 10px;
+    }
+
     /* ── AUTH SCREEN ── */
     .auth-screen {
       position: fixed; inset: 0; background: var(--cream);
@@ -266,7 +280,8 @@
     <div class="stat-chip" id="total-guests-stat">0 guests</div>
     <div class="stat-chip" id="seated-stat">0 seated</div>
     <div class="stat-chip gold" id="tables-stat">0 tables</div>
-    <button class="btn btn-outline" onclick="saveData()">💾 Save</button>
+    <span id="collab-users" style="display:flex;gap:6px;align-items:center;"></span>
+    <span class="sync-dot" id="sync-status" title="Sync status"></span>
     <button class="btn btn-gold" onclick="window.print()">🖨️ Print</button>
     <button class="btn btn-outline btn-sm" onclick="signOut()" id="signout-btn" style="display:none">Sign out</button>
   </div>
@@ -366,7 +381,25 @@ const SUPABASE_URL  = 'https://ucokvtdtiymfddywivxv.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjb2t2dGR0aXltZmRkeXdpdnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMjA5MzQsImV4cCI6MjA4ODc5NjkzNH0.3dDVuwIEXtY-o4Ib1oajijt0WBWhd1LzQVLE6oy47YM';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 const ROW_ID = 'wedding';
+const CLIENT_ID = Math.random().toString(36).slice(2);
 let authMode = 'signin';
+let _loading = false;
+let _saveTimer = null;
+let _realtimeChannel = null;
+let _presenceChannel = null;
+
+function scheduleSave() {
+  clearTimeout(_saveTimer);
+  setSyncStatus('pending');
+  _saveTimer = setTimeout(saveData, 1500);
+}
+
+function setSyncStatus(state) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.className = 'sync-dot ' + state;
+  el.title = { synced: 'All changes saved', pending: 'Unsaved changes…', saving: 'Saving…' }[state] || '';
+}
 let draggedGuestId = null;
 let draggedTableId = null;
 
@@ -443,20 +476,65 @@ async function signOut() {
 
 // ─── Persist ──────────────────────────────────────────────────────────────────
 async function saveData() {
+  setSyncStatus('saving');
   const { error } = await sb.from('seating_data').upsert({
     id: ROW_ID,
-    data: { guests, tables, gCounter, tCounter },
+    data: { guests, tables, gCounter, tCounter, clientId: CLIENT_ID },
     updated_at: new Date().toISOString()
   });
-  showToast(error ? 'Save failed ✗' : 'Saved ✓');
+  setSyncStatus(error ? 'pending' : 'synced');
+  if (error) showToast('Save failed ✗');
 }
 async function loadData() {
+  _loading = true;
   const { data, error } = await sb.from('seating_data').select('data').eq('id', ROW_ID).single();
-  if (error || !data) return;
-  const d = data.data;
-  guests = d.guests || []; tables = d.tables || [];
-  gCounter = d.gCounter || 0; tCounter = d.tCounter || 0;
-  render(); showToast('Session restored ✓');
+  if (!error && data) {
+    const d = data.data;
+    guests = d.guests || []; tables = d.tables || [];
+    gCounter = d.gCounter || 0; tCounter = d.tCounter || 0;
+    render();
+  }
+  _loading = false;
+}
+
+function subscribeRealtime() {
+  if (_realtimeChannel) sb.removeChannel(_realtimeChannel);
+  _realtimeChannel = sb.channel('seating_data_changes')
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'seating_data', filter: `id=eq.${ROW_ID}`
+    }, (payload) => {
+      const raw = payload.new?.data;
+      const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!d || d.clientId === CLIENT_ID) return;
+      clearTimeout(_saveTimer);
+      _loading = true;
+      guests = d.guests || []; tables = d.tables || [];
+      gCounter = d.gCounter || 0; tCounter = d.tCounter || 0;
+      render();
+      _loading = false;
+      setSyncStatus('synced');
+      showToast('Updated by collaborator ✓');
+    })
+    .subscribe();
+}
+
+function setupPresence(email) {
+  if (_presenceChannel) sb.removeChannel(_presenceChannel);
+  _presenceChannel = sb.channel('room:wedding', { config: { presence: { key: email } } });
+  _presenceChannel
+    .on('presence', { event: 'sync' }, () => {
+      updateOnlineBar(Object.keys(_presenceChannel.presenceState()));
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') await _presenceChannel.track({ email, ts: Date.now() });
+    });
+}
+
+function updateOnlineBar(users) {
+  const el = document.getElementById('collab-users');
+  if (!el) return;
+  if (users.length <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = users.map(u => `<span class="online-chip" title="${esc(u)}">🟢 ${esc(u.split('@')[0])}</span>`).join('');
 }
 
 // ─── Guests ───────────────────────────────────────────────────────────────────
@@ -572,7 +650,7 @@ function removeTable(tableId) {
   tables = tables.filter(t => t.id !== tableId); render();
 }
 function updateTableName(tableId, name) {
-  const t = tables.find(t => t.id === tableId); if (t) t.name = name;
+  const t = tables.find(t => t.id === tableId); if (t) { t.name = name; scheduleSave(); }
 }
 
 function seatGuest(tableId, guestId) {
@@ -712,7 +790,7 @@ function handleTableDrop(e, tableId) {
       const toIdx   = tables.findIndex(t => t.id === tableId);
       if (fromIdx !== -1 && toIdx !== -1) {
         const [moved] = tables.splice(fromIdx, 1); tables.splice(toIdx, 0, moved);
-        renderStats(); renderPool(); renderTablesAnimated();
+        renderStats(); renderPool(); renderTablesAnimated(); scheduleSave();
       }
     }
     draggedTableId = null; return;
@@ -738,7 +816,7 @@ function poolDrop(e) {
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
-function render() { renderStats(); renderPool(); renderTables(); }
+function render() { renderStats(); renderPool(); renderTables(); if (!_loading) scheduleSave(); }
 
 function renderStats() {
   const total   = guests.length;
@@ -889,12 +967,17 @@ sb.auth.onAuthStateChange(async (event, session) => {
   if (session) {
     showApp();
     await loadData();
+    subscribeRealtime();
+    setupPresence(session.user.email);
+    setSyncStatus('synced');
     if (!tables.length) {
       addTable('Table 1', 10);
       addTable('Table 2', 10);
       addTable('Table 3', 10);
     }
   } else {
+    if (_realtimeChannel) sb.removeChannel(_realtimeChannel);
+    if (_presenceChannel) sb.removeChannel(_presenceChannel);
     showAuthScreen();
   }
 });
