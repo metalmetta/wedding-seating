@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Wedding Seating Chart</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💍</text></svg>">
   <style>
     :root {
       --rose: #c9748f;
@@ -269,7 +270,7 @@
     <div class="auth-error" id="auth-error"></div>
     <div class="auth-toggle">
       <span id="auth-toggle-text">Don't have an account?</span>
-      <a onclick="toggleAuthMode()">Sign up</a>
+      <a onclick="toggleAuthMode()" id="auth-toggle-link">Sign up</a>
     </div>
   </div>
 </div>
@@ -439,6 +440,7 @@ function toggleAuthMode() {
   document.getElementById('auth-toggle-text').textContent = isSignin
     ? "Don't have an account?"
     : 'Already have an account?';
+  document.getElementById('auth-toggle-link').textContent = isSignin ? 'Sign up' : 'Sign in';
   document.getElementById('auth-error').textContent = '';
 }
 
@@ -651,6 +653,20 @@ function removeTable(tableId) {
 }
 function updateTableName(tableId, name) {
   const t = tables.find(t => t.id === tableId); if (t) { t.name = name; scheduleSave(); }
+}
+
+function updateTableSize(tableId, delta) {
+  const t = tables.find(t => t.id === tableId); if (!t) return;
+  const newSize = t.size + delta;
+  if (newSize < 1 || newSize > 20) return;
+  if (delta < 0) {
+    // guests in removed seats go back to unassigned pool (seats array shrinks)
+    t.seats = t.seats.slice(0, newSize);
+  } else {
+    t.seats.push(null);
+  }
+  t.size = newSize;
+  render();
 }
 
 function seatGuest(tableId, guestId) {
@@ -908,7 +924,15 @@ function renderRoundTable(t) {
           <input class="table-name-input" value="${esc(t.name)}"
             onchange="updateTableName(${t.id},this.value)" title="Click to rename"/>
         </div>
-        <span class="table-count ${isFull ? 'full' : ''}">${filled}/${n}</span>
+        <div style="display:flex;align-items:center;gap:3px;">
+          <button onclick="updateTableSize(${t.id},-1)" title="Remove a seat"
+            style="width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:0.85rem;line-height:1;color:var(--text-muted);display:flex;align-items:center;justify-content:center;padding:0;"
+            ${n <= 1 ? 'disabled' : ''}>−</button>
+          <span class="table-count ${isFull ? 'full' : ''}">${filled}/${n}</span>
+          <button onclick="updateTableSize(${t.id},1)" title="Add a seat"
+            style="width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:0.85rem;line-height:1;color:var(--text-muted);display:flex;align-items:center;justify-content:center;padding:0;"
+            ${n >= 20 ? 'disabled' : ''}>+</button>
+        </div>
       </div>
       <div class="round-table-body">
         <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
