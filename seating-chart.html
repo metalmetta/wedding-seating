@@ -217,9 +217,48 @@
       .sidebar { position: static; height: auto; }
       .main { padding: 12px; }
     }
+
+    /* ── AUTH SCREEN ── */
+    .auth-screen {
+      position: fixed; inset: 0; background: var(--cream);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+    }
+    .auth-screen.hidden { display: none; }
+    .auth-card {
+      background: white; border-radius: 16px; padding: 40px 36px;
+      box-shadow: 0 8px 40px rgba(180,100,120,0.15); width: 100%; max-width: 380px;
+      text-align: center;
+    }
+    .auth-card h2 { color: var(--rose-dark); font-style: italic; margin-bottom: 6px; font-size: 1.5rem; }
+    .auth-card p { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px; }
+    .auth-card input {
+      width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 0.9rem; font-family: inherit;
+      background: var(--cream); margin-bottom: 12px; display: block;
+    }
+    .auth-card input:focus { outline: none; border-color: var(--rose); }
+    .auth-card .btn { width: 100%; margin-top: 4px; padding: 10px; font-size: 0.9rem; }
+    .auth-toggle { margin-top: 16px; font-size: 0.82rem; color: var(--text-muted); }
+    .auth-toggle a { color: var(--rose); cursor: pointer; text-decoration: underline; }
+    .auth-error { color: #c0392b; font-size: 0.82rem; margin-top: 8px; min-height: 18px; }
   </style>
 </head>
 <body>
+
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-card">
+    <h2>💍 Wedding Seating</h2>
+    <p id="auth-subtitle">Sign in to manage your seating chart</p>
+    <input type="email" id="auth-email" placeholder="Email" autocomplete="email" />
+    <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleAuth()" />
+    <button class="btn btn-primary" onclick="handleAuth()" id="auth-btn">Sign in</button>
+    <div class="auth-error" id="auth-error"></div>
+    <div class="auth-toggle">
+      <span id="auth-toggle-text">Don't have an account?</span>
+      <a onclick="toggleAuthMode()">Sign up</a>
+    </div>
+  </div>
+</div>
 
 <header>
   <h1>💍 Wedding <span>Seating</span> Chart</h1>
@@ -229,6 +268,7 @@
     <div class="stat-chip gold" id="tables-stat">0 tables</div>
     <button class="btn btn-outline" onclick="saveData()">💾 Save</button>
     <button class="btn btn-gold" onclick="window.print()">🖨️ Print</button>
+    <button class="btn btn-outline btn-sm" onclick="signOut()" id="signout-btn" style="display:none">Sign out</button>
   </div>
 </header>
 
@@ -326,6 +366,7 @@ const SUPABASE_URL  = 'https://ucokvtdtiymfddywivxv.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjb2t2dGR0aXltZmRkeXdpdnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMjA5MzQsImV4cCI6MjA4ODc5NjkzNH0.3dDVuwIEXtY-o4Ib1oajijt0WBWhd1LzQVLE6oy47YM';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 const ROW_ID = 'wedding';
+let authMode = 'signin';
 let draggedGuestId = null;
 let draggedTableId = null;
 
@@ -342,6 +383,62 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+function showApp() {
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('signout-btn').style.display = '';
+}
+
+function showAuthScreen() {
+  document.getElementById('auth-screen').classList.remove('hidden');
+  document.getElementById('signout-btn').style.display = 'none';
+}
+
+function toggleAuthMode() {
+  authMode = authMode === 'signin' ? 'signup' : 'signin';
+  const isSignin = authMode === 'signin';
+  document.getElementById('auth-btn').textContent = isSignin ? 'Sign in' : 'Sign up';
+  document.getElementById('auth-subtitle').textContent = isSignin
+    ? 'Sign in to manage your seating chart'
+    : 'Create an account to get started';
+  document.getElementById('auth-toggle-text').textContent = isSignin
+    ? "Don't have an account?"
+    : 'Already have an account?';
+  document.getElementById('auth-error').textContent = '';
+}
+
+async function handleAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+
+  const btn = document.getElementById('auth-btn');
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  const { error } = authMode === 'signin'
+    ? await sb.auth.signInWithPassword({ email, password })
+    : await sb.auth.signUp({ email, password });
+
+  btn.disabled = false;
+  btn.textContent = authMode === 'signin' ? 'Sign in' : 'Sign up';
+
+  if (error) { errEl.textContent = error.message; return; }
+  if (authMode === 'signup') {
+    errEl.style.color = 'var(--rose-dark)';
+    errEl.textContent = 'Account created — you are now signed in.';
+  }
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  guests = []; tables = []; gCounter = 0; tCounter = 0;
+  render();
+  showAuthScreen();
 }
 
 // ─── Persist ──────────────────────────────────────────────────────────────────
@@ -788,14 +885,19 @@ function renderTablesAnimated() {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-(async () => {
-  await loadData();
-  if (!tables.length) {
-    addTable('Table 1', 10);
-    addTable('Table 2', 10);
-    addTable('Table 3', 10);
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session) {
+    showApp();
+    await loadData();
+    if (!tables.length) {
+      addTable('Table 1', 10);
+      addTable('Table 2', 10);
+      addTable('Table 3', 10);
+    }
+  } else {
+    showAuthScreen();
   }
-})();
+});
 </script>
 </body>
 </html>
