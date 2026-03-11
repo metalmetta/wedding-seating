@@ -385,6 +385,7 @@ const ROW_ID = 'wedding';
 const CLIENT_ID = Math.random().toString(36).slice(2);
 let authMode = 'signin';
 let _loading = false;
+let _dataLoaded = false;
 let _saveTimer = null;
 let _realtimeChannel = null;
 let _presenceChannel = null;
@@ -589,10 +590,11 @@ function handleCSVFile(e) {
 }
 function readCSVFile(file) {
   const reader = new FileReader();
-  reader.onload = ev => {
+  reader.onload = async ev => {
     const count = parseCSV(ev.target.result);
     render();
     showToast(count > 0 ? `${count} guests imported from CSV ✓` : 'No names found in CSV');
+    if (count > 0) { clearTimeout(_saveTimer); await saveData(); }
   };
   reader.readAsText(file);
 }
@@ -990,16 +992,20 @@ function renderTablesAnimated() {
 sb.auth.onAuthStateChange(async (event, session) => {
   if (session) {
     showApp();
-    await loadData();
+    if (!_dataLoaded) {
+      _dataLoaded = true;
+      await loadData();
+      if (!tables.length) {
+        addTable('Table 1', 10);
+        addTable('Table 2', 10);
+        addTable('Table 3', 10);
+      }
+    }
     subscribeRealtime();
     setupPresence(session.user.email);
     setSyncStatus('synced');
-    if (!tables.length) {
-      addTable('Table 1', 10);
-      addTable('Table 2', 10);
-      addTable('Table 3', 10);
-    }
   } else {
+    _dataLoaded = false;
     if (_realtimeChannel) sb.removeChannel(_realtimeChannel);
     if (_presenceChannel) sb.removeChannel(_presenceChannel);
     showAuthScreen();
