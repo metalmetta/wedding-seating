@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Wedding Seating Chart</title>
+  <style>
+    :root {
+      --rose: #c9748f;
+      --rose-light: #f5e6ea;
+      --rose-dark: #a05570;
+      --gold: #c8a96e;
+      --gold-light: #f7f0e3;
+      --cream: #fdf8f4;
+      --text: #3a2e2e;
+      --text-muted: #8a7070;
+      --border: #e8d5d5;
+      --shadow: 0 2px 12px rgba(180,100,120,0.10);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Georgia', serif; background: var(--cream); color: var(--text); min-height: 100vh; }
+
+    /* ── HEADER ── */
+    header {
+      background: white; border-bottom: 2px solid var(--border);
+      padding: 16px 28px; display: flex; align-items: center;
+      justify-content: space-between; flex-wrap: wrap; gap: 10px;
+      position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow);
+    }
+    header h1 { font-size: 1.45rem; color: var(--rose-dark); font-style: italic; letter-spacing: 1px; }
+    header h1 span { color: var(--gold); }
+    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .stat-chip {
+      background: var(--rose-light); color: var(--rose-dark);
+      border-radius: 12px; padding: 3px 11px; font-size: 0.78rem; font-weight: 600;
+    }
+    .stat-chip.gold { background: var(--gold-light); color: #7a5a1e; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      padding: 7px 16px; border-radius: 20px; border: none; cursor: pointer;
+      font-size: 0.83rem; font-family: inherit; transition: all 0.18s; font-weight: 600;
+    }
+    .btn-primary { background: var(--rose); color: white; }
+    .btn-primary:hover { background: var(--rose-dark); }
+    .btn-outline { background: white; color: var(--rose); border: 2px solid var(--rose); }
+    .btn-outline:hover { background: var(--rose-light); }
+    .btn-gold { background: var(--gold); color: white; }
+    .btn-gold:hover { background: #a8893e; }
+    .btn-sm { padding: 4px 11px; font-size: 0.76rem; }
+
+    /* ── LAYOUT ── */
+    .layout { display: grid; grid-template-columns: 270px 1fr; min-height: calc(100vh - 66px); }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      background: white; border-right: 2px solid var(--border); padding: 18px;
+      overflow-y: auto; height: calc(100vh - 66px); position: sticky; top: 66px;
+    }
+    .sidebar-section { margin-bottom: 18px; }
+    .sidebar-section h2 { font-size: 0.95rem; color: var(--rose-dark); margin-bottom: 10px; font-style: italic; }
+    .sidebar-section h3 {
+      font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 1px; margin-bottom: 8px;
+    }
+    .input-row { display: flex; flex-direction: column; gap: 7px; }
+    .input-row input, .input-row textarea {
+      padding: 7px 11px; border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 0.88rem; font-family: inherit; outline: none;
+      transition: border 0.18s; background: var(--cream); resize: vertical;
+    }
+    .input-row input:focus, .input-row textarea:focus { border-color: var(--rose); }
+
+    /* CSV drop zone */
+    .csv-zone {
+      border: 2px dashed var(--gold); border-radius: 12px; padding: 13px 10px;
+      text-align: center; cursor: pointer; background: var(--gold-light);
+      transition: background 0.18s, border-color 0.18s;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+    }
+    .csv-zone:hover, .csv-zone.drag-active { background: #f0e3c0; border-color: #a8893e; }
+    .csv-zone .csv-icon { font-size: 1.6rem; }
+    .csv-zone .csv-label { font-size: 0.85rem; color: var(--rose-dark); font-weight: 600; }
+    .csv-zone .csv-hint { font-size: 0.73rem; color: var(--text-muted); }
+
+    /* Unassigned pool */
+    .unassigned-pool {
+      display: flex; flex-direction: column; gap: 5px;
+      max-height: 300px; overflow-y: auto; padding-right: 2px;
+    }
+    .guest-chip {
+      background: var(--gold-light); border: 1.5px dashed var(--gold); border-radius: 8px;
+      padding: 5px 9px; font-size: 0.85rem; cursor: grab;
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      transition: background 0.13s, transform 0.13s; user-select: none;
+    }
+    .guest-chip:active { cursor: grabbing; transform: scale(1.02); }
+    .guest-chip:hover { background: #f0e3c0; }
+    .chip-remove { color: #c08080; cursor: pointer; font-size: 1rem; line-height: 1; flex-shrink: 0; }
+    .chip-remove:hover { color: #a04040; }
+
+    /* ── MAIN ── */
+    .main { padding: 24px; overflow-y: auto; }
+    .tables-toolbar {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 22px; flex-wrap: wrap; gap: 10px;
+    }
+    .tables-toolbar h2 { font-size: 1.05rem; color: var(--rose-dark); font-style: italic; }
+    .tables-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 24px;
+    }
+
+    /* ── ROUND TABLE CARD ── */
+    .table-card {
+      background: white; border-radius: 16px; border: 2px solid var(--border);
+      box-shadow: var(--shadow); overflow: hidden; transition: border-color 0.18s;
+    }
+    .table-card.drag-over { border-color: var(--rose); box-shadow: 0 0 0 3px rgba(201,116,143,0.18); }
+    .table-card.full { border-color: #e07070; }
+    .table-card.table-reorder-over { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200,169,110,0.28); }
+    .table-drag-handle { cursor: grab; color: var(--text-muted); font-size: 1.1rem; padding: 0 2px; user-select: none; line-height: 1; }
+    .table-drag-handle:active { cursor: grabbing; }
+
+    .table-header {
+      background: linear-gradient(135deg, var(--rose-light), var(--gold-light));
+      padding: 10px 14px; display: flex; align-items: center;
+      justify-content: space-between; border-bottom: 1.5px solid var(--border);
+    }
+    .table-name-wrap { display: flex; align-items: center; gap: 7px; }
+    .table-name-input {
+      font-size: 0.93rem; font-family: inherit; font-style: italic;
+      color: var(--rose-dark); font-weight: bold; border: none;
+      background: transparent; outline: none; width: 130px;
+    }
+    .table-name-input:focus { border-bottom: 1.5px solid var(--rose); }
+    .table-count {
+      font-size: 0.78rem; color: var(--text-muted); background: white;
+      border-radius: 10px; padding: 2px 9px; border: 1px solid var(--border); white-space: nowrap;
+    }
+    .table-count.full { color: #e07070; border-color: #e07070; }
+
+    .round-table-body { padding: 10px 10px 4px; }
+
+    /* SVG seat interactions */
+    .filled-seat { cursor: grab; }
+    .filled-seat:active { cursor: grabbing; }
+    .filled-seat .seat-circle { transition: filter 0.15s; }
+    .filled-seat:hover .seat-circle { filter: brightness(0.92); }
+    .filled-seat .remove-dot { opacity: 0; transition: opacity 0.15s; pointer-events: all; cursor: pointer; }
+    .filled-seat:hover .remove-dot { opacity: 1; }
+
+    .table-drop-hint {
+      text-align: center; color: var(--text-muted); font-size: 0.79rem;
+      font-style: italic; padding: 2px 0 6px;
+    }
+    .table-footer {
+      padding: 6px 12px 10px; display: flex; gap: 6px; justify-content: flex-end;
+    }
+
+    /* ── EMPTY STATE ── */
+    .empty-state { text-align: center; color: var(--text-muted); padding: 60px 20px; font-style: italic; }
+    .empty-state .big-emoji { font-size: 3rem; display: block; margin-bottom: 12px; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(60,30,40,0.4);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; backdrop-filter: blur(2px);
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      background: white; border-radius: 16px; padding: 26px 30px;
+      max-width: 400px; width: 90%; box-shadow: 0 8px 40px rgba(180,100,120,0.18);
+    }
+    .modal h3 { font-size: 1.05rem; color: var(--rose-dark); margin-bottom: 14px; font-style: italic; }
+    .modal input, .modal select {
+      width: 100%; padding: 8px 12px; border: 1.5px solid var(--border);
+      border-radius: 10px; font-size: 0.9rem; font-family: inherit;
+      background: var(--cream); margin-bottom: 11px; outline: none;
+    }
+    .modal input:focus, .modal select:focus { border-color: var(--rose); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+
+    /* ── DRAG GHOST ── */
+    .drag-ghost {
+      position: fixed; pointer-events: none; z-index: 9999;
+      background: var(--rose); color: white; padding: 5px 13px;
+      border-radius: 20px; font-size: 0.85rem; font-family: Georgia, serif;
+      box-shadow: 0 4px 16px rgba(180,100,120,0.35); transform: rotate(-2deg);
+      white-space: nowrap; transition: opacity 0.1s;
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 26px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #3a2e2e; color: white; padding: 9px 20px;
+      border-radius: 20px; font-size: 0.88rem; z-index: 999;
+      transition: transform 0.28s; pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── PRINT ── */
+    @media print {
+      header, .sidebar, .tables-toolbar .btn, .table-footer, .remove-dot, .chip-remove { display: none !important; }
+      body { background: white; }
+      .layout { grid-template-columns: 1fr; }
+      .main { padding: 8px; }
+      .tables-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      .table-card { break-inside: avoid; box-shadow: none; border: 1.5px solid #ccc; }
+    }
+
+    @media (max-width: 700px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; }
+      .main { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>💍 Wedding <span>Seating</span> Chart</h1>
+  <div class="header-actions">
+    <div class="stat-chip" id="total-guests-stat">0 guests</div>
+    <div class="stat-chip" id="seated-stat">0 seated</div>
+    <div class="stat-chip gold" id="tables-stat">0 tables</div>
+    <button class="btn btn-outline" onclick="saveData()">💾 Save</button>
+    <button class="btn btn-gold" onclick="window.print()">🖨️ Print</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+
+    <!-- CSV Upload -->
+    <div class="sidebar-section">
+      <h2>Import Guests</h2>
+      <div class="csv-zone" id="csv-zone"
+        onclick="document.getElementById('csv-file').click()"
+        ondragover="csvDragOver(event)" ondragleave="csvDragLeave(event)" ondrop="csvDrop(event)">
+        <input type="file" id="csv-file" accept=".csv,.txt" style="display:none" onchange="handleCSVFile(event)" />
+        <span class="csv-icon">📂</span>
+        <span class="csv-label">Upload CSV</span>
+        <span class="csv-hint">Drop file or click · name / first+last columns</span>
+      </div>
+    </div>
+
+    <!-- Manual add -->
+    <div class="sidebar-section">
+      <h2>Add Guests</h2>
+      <div class="input-row" style="margin-bottom:10px;">
+        <input type="text" id="guest-input" placeholder="Guest name…" onkeydown="if(event.key==='Enter')addGuest()" />
+        <button class="btn btn-primary" onclick="addGuest()">+ Add Guest</button>
+      </div>
+      <div class="input-row">
+        <textarea id="bulk-input" placeholder="Bulk add: one name per line…" rows="3"></textarea>
+        <button class="btn btn-outline" onclick="bulkAddGuests()">+ Add All</button>
+      </div>
+    </div>
+
+    <!-- Unassigned pool -->
+    <div class="sidebar-section">
+      <h3>Unassigned (<span id="unassigned-count">0</span>)</h3>
+      <div class="unassigned-pool" id="unassigned-pool"
+        ondragover="poolDragOver(event)" ondragleave="poolDragLeave(event)" ondrop="poolDrop(event)">
+        <div style="color:var(--text-muted);font-style:italic;font-size:0.83rem;">No unassigned guests</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+    <div class="tables-toolbar">
+      <h2>Tables</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-outline" onclick="openAddTableModal()">＋ Add Table</button>
+        <button class="btn btn-outline" onclick="autoAssign()">🎲 Auto-assign</button>
+      </div>
+    </div>
+    <div class="tables-grid" id="tables-grid">
+      <div class="empty-state">
+        <span class="big-emoji">🌸</span>
+        No tables yet. Click <strong>+ Add Table</strong> to get started!
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Add Table Modal -->
+<div class="modal-overlay hidden" id="add-table-modal">
+  <div class="modal">
+    <h3>New Table</h3>
+    <input type="text" id="table-name-input" placeholder="Table name (e.g. Rose, Table 1…)" />
+    <label style="font-size:0.83rem;color:var(--text-muted);display:block;margin-bottom:4px;">Seats (8–10)</label>
+    <select id="table-size-input">
+      <option value="8">8 seats</option>
+      <option value="9">9 seats</option>
+      <option value="10" selected>10 seats</option>
+    </select>
+    <label style="font-size:0.83rem;color:var(--text-muted);display:block;margin:8px 0 4px;">How many tables?</label>
+    <input type="number" id="table-count-input" value="1" min="1" max="20" style="margin-bottom:11px;" />
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAddTable()">Add Table</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let guests  = [];   // { id, name }
+let tables  = [];   // { id, name, size, seats: [guestId|null, …] }
+let gCounter = 0, tCounter = 0;
+
+// ─── Supabase ─────────────────────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://ucokvtdtiymfddywivxv.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjb2t2dGR0aXltZmRkeXdpdnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMjA5MzQsImV4cCI6MjA4ODc5NjkzNH0.3dDVuwIEXtY-o4Ib1oajijt0WBWhd1LzQVLE6oy47YM';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const ROW_ID = 'wedding';
+let draggedGuestId = null;
+let draggedTableId = null;
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+const uid = () => ++gCounter;
+const tid = () => ++tCounter;
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ─── Persist ──────────────────────────────────────────────────────────────────
+async function saveData() {
+  const { error } = await sb.from('seating_data').upsert({
+    id: ROW_ID,
+    data: { guests, tables, gCounter, tCounter },
+    updated_at: new Date().toISOString()
+  });
+  showToast(error ? 'Save failed ✗' : 'Saved ✓');
+}
+async function loadData() {
+  const { data, error } = await sb.from('seating_data').select('data').eq('id', ROW_ID).single();
+  if (error || !data) return;
+  const d = data.data;
+  guests = d.guests || []; tables = d.tables || [];
+  gCounter = d.gCounter || 0; tCounter = d.tCounter || 0;
+  render(); showToast('Session restored ✓');
+}
+
+// ─── Guests ───────────────────────────────────────────────────────────────────
+function addGuest() {
+  const el = document.getElementById('guest-input');
+  const name = el.value.trim(); if (!name) return;
+  guests.push({ id: uid(), name });
+  el.value = ''; el.focus(); render();
+}
+
+function bulkAddGuests() {
+  const ta = document.getElementById('bulk-input');
+  const names = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!names.length) return;
+  names.forEach(n => guests.push({ id: uid(), name: n }));
+  ta.value = ''; render(); showToast(`${names.length} guests added ✓`);
+}
+
+function removeGuest(gId) {
+  guests = guests.filter(g => g.id !== gId);
+  tables.forEach(t => { t.seats = t.seats.map(s => s === gId ? null : s); });
+  render();
+}
+
+function getGuest(id) { return guests.find(g => g.id === id); }
+
+function getUnassigned() {
+  const seated = new Set(tables.flatMap(t => t.seats.filter(Boolean)));
+  return guests.filter(g => !seated.has(g.id));
+}
+
+// ─── CSV Import ───────────────────────────────────────────────────────────────
+function csvDragOver(e) {
+  e.preventDefault();
+  document.getElementById('csv-zone').classList.add('drag-active');
+}
+function csvDragLeave() {
+  document.getElementById('csv-zone').classList.remove('drag-active');
+}
+function csvDrop(e) {
+  e.preventDefault();
+  document.getElementById('csv-zone').classList.remove('drag-active');
+  const file = e.dataTransfer.files[0];
+  if (file) readCSVFile(file);
+}
+function handleCSVFile(e) {
+  const file = e.target.files[0];
+  if (file) readCSVFile(file);
+  e.target.value = '';
+}
+function readCSVFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const count = parseCSV(ev.target.result);
+    render();
+    showToast(count > 0 ? `${count} guests imported from CSV ✓` : 'No names found in CSV');
+  };
+  reader.readAsText(file);
+}
+
+function parseCSVLine(line) {
+  const cols = []; let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+    else { cur += ch; }
+  }
+  cols.push(cur.trim());
+  return cols;
+}
+
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return 0;
+
+  const rows = lines.map(parseCSVLine);
+  const headerRow = rows[0].map(c => c.toLowerCase().replace(/['"]/g,''));
+
+  // Detect header line: if any cell looks like a label (non-numeric, short)
+  const isHeader = headerRow.some(c =>
+    /^[a-z\s_-]+$/.test(c) && c.length < 30 &&
+    ['name','guest','first','last','prénom','nom','invité'].some(kw => c.includes(kw))
+  );
+  const dataStart = isHeader ? 1 : 0;
+
+  // Find useful column indices
+  const nameIdx  = headerRow.findIndex(c => c === 'name' || c === 'full name' || c === 'guest name' || c === 'guest');
+  const firstIdx = headerRow.findIndex(c => c.includes('first') || c === 'prénom');
+  const lastIdx  = headerRow.findIndex(c => c.includes('last') || c === 'nom' || c === 'surname');
+
+  let added = 0;
+  for (let i = dataStart; i < rows.length; i++) {
+    const row = rows[i]; if (!row[0]) continue;
+    let name = '';
+    if (nameIdx >= 0 && row[nameIdx])       name = row[nameIdx];
+    else if (firstIdx >= 0 && lastIdx >= 0) name = [row[firstIdx], row[lastIdx]].filter(Boolean).join(' ');
+    else if (firstIdx >= 0)                 name = row[firstIdx] || '';
+    else if (rows[0].length >= 2 && !isHeader && row[1]) name = `${row[0]} ${row[1]}`.trim();
+    else                                    name = row[0];
+    name = name.replace(/^["']|["']$/g, '').trim();
+    if (name) { guests.push({ id: uid(), name }); added++; }
+  }
+  return added;
+}
+
+// ─── Tables ───────────────────────────────────────────────────────────────────
+function addTable(name, size) {
+  tables.push({ id: tid(), name, size: Number(size), seats: Array(Number(size)).fill(null) });
+  render();
+}
+function removeTable(tableId) {
+  tables = tables.filter(t => t.id !== tableId); render();
+}
+function updateTableName(tableId, name) {
+  const t = tables.find(t => t.id === tableId); if (t) t.name = name;
+}
+
+function seatGuest(tableId, guestId) {
+  const table = tables.find(t => t.id === tableId); if (!table) return false;
+  const emptyIdx = table.seats.findIndex(s => s === null);
+  if (emptyIdx === -1) { showToast('Table is full!'); return false; }
+  tables.forEach(t => { t.seats = t.seats.map(s => s === guestId ? null : s); });
+  table.seats[emptyIdx] = guestId;
+  return true;
+}
+
+function unseatGuest(tableId, guestId) {
+  const table = tables.find(t => t.id === tableId); if (!table) return;
+  table.seats = table.seats.map(s => s === guestId ? null : s);
+  render();
+}
+
+function autoAssign() {
+  const unassigned = getUnassigned();
+  if (!unassigned.length) { showToast('All guests are already seated!'); return; }
+  let placed = 0;
+  for (const g of unassigned) {
+    for (const t of tables) {
+      if (t.seats.some(s => s === null)) { seatGuest(t.id, g.id); placed++; break; }
+    }
+  }
+  render();
+  const left = getUnassigned().length;
+  showToast(left > 0 ? `${placed} placed · ${left} still need tables` : `All guests seated! 🎉`);
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+function openAddTableModal() {
+  document.getElementById('add-table-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('table-name-input').focus(), 40);
+}
+function closeModal() {
+  document.getElementById('add-table-modal').classList.add('hidden');
+  document.getElementById('table-name-input').value = '';
+  document.getElementById('table-count-input').value = '1';
+}
+function confirmAddTable() {
+  const baseName = document.getElementById('table-name-input').value.trim();
+  const size  = document.getElementById('table-size-input').value;
+  const count = Math.max(1, Math.min(20, parseInt(document.getElementById('table-count-input').value) || 1));
+  if (count === 1) {
+    addTable(baseName || `Table ${tCounter + 1}`, size);
+  } else {
+    for (let i = 1; i <= count; i++) {
+      addTable(baseName ? `${baseName} ${i}` : `Table ${tCounter + 1}`, size);
+    }
+  }
+  closeModal();
+}
+document.getElementById('add-table-modal').addEventListener('click', e => { if (e.target.id === 'add-table-modal') closeModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Enter' && !document.getElementById('add-table-modal').classList.contains('hidden')) confirmAddTable();
+});
+
+// ─── Drag & Drop ──────────────────────────────────────────────────────────────
+function handleDragStart(gId) { draggedGuestId = gId; draggedTableId = null; }
+
+// ─── Pointer drag (for SVG seats) ─────────────────────────────────────────────
+let ptrGuestId = null, dragGhost = null;
+
+function seatPointerDown(e, gId) {
+  if (e.target.classList && e.target.classList.contains('remove-dot')) return;
+  e.preventDefault();
+  ptrGuestId = gId;
+  const g = getGuest(gId);
+  dragGhost = document.createElement('div');
+  dragGhost.className = 'drag-ghost';
+  dragGhost.textContent = '👤 ' + (g ? g.name : '');
+  dragGhost.style.left = (e.clientX + 14) + 'px';
+  dragGhost.style.top  = (e.clientY - 20) + 'px';
+  document.body.appendChild(dragGhost);
+  document.addEventListener('pointermove', ptrMove);
+  document.addEventListener('pointerup',   ptrUp);
+}
+
+function ptrMove(e) {
+  if (!dragGhost) return;
+  dragGhost.style.left = (e.clientX + 14) + 'px';
+  dragGhost.style.top  = (e.clientY - 20) + 'px';
+  document.querySelectorAll('.table-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+  const hit = document.elementsFromPoint(e.clientX, e.clientY).find(el => el.id && el.id.startsWith('tc-'));
+  if (hit) hit.classList.add('drag-over');
+}
+
+function ptrUp(e) {
+  document.removeEventListener('pointermove', ptrMove);
+  document.removeEventListener('pointerup',   ptrUp);
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+  if (ptrGuestId == null) return;
+  const under = document.elementsFromPoint(e.clientX, e.clientY);
+  const tableCard = under.find(el => el.id && el.id.startsWith('tc-'));
+  const inPool    = under.some(el => el.id === 'unassigned-pool');
+  if (tableCard) {
+    if (seatGuest(parseInt(tableCard.id.slice(3)), ptrGuestId)) render();
+  } else if (inPool) {
+    tables.forEach(t => { t.seats = t.seats.map(s => s === ptrGuestId ? null : s); });
+    render();
+  }
+  ptrGuestId = null;
+}
+function handleDragEnd()      { document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); }
+
+function handleTableDragStart(e, tableId) {
+  e.stopPropagation();
+  draggedTableId = tableId; draggedGuestId = null;
+}
+function handleTableDragEnd() {
+  draggedTableId = null;
+  document.querySelectorAll('.table-reorder-over').forEach(el => el.classList.remove('table-reorder-over'));
+}
+
+function handleTableDragOver(e, tableId) {
+  e.preventDefault();
+  if (draggedTableId !== null) {
+    document.querySelectorAll('.table-reorder-over').forEach(el => el.classList.remove('table-reorder-over'));
+    if (draggedTableId !== tableId) document.getElementById('tc-' + tableId)?.classList.add('table-reorder-over');
+    return;
+  }
+  document.querySelectorAll('.table-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+  document.getElementById('tc-' + tableId)?.classList.add('drag-over');
+}
+function handleTableDrop(e, tableId) {
+  e.preventDefault();
+  document.querySelectorAll('.drag-over, .table-reorder-over').forEach(el => {
+    el.classList.remove('drag-over'); el.classList.remove('table-reorder-over');
+  });
+  if (draggedTableId !== null) {
+    if (draggedTableId !== tableId) {
+      const fromIdx = tables.findIndex(t => t.id === draggedTableId);
+      const toIdx   = tables.findIndex(t => t.id === tableId);
+      if (fromIdx !== -1 && toIdx !== -1) {
+        const [moved] = tables.splice(fromIdx, 1); tables.splice(toIdx, 0, moved);
+        renderStats(); renderPool(); renderTablesAnimated();
+      }
+    }
+    draggedTableId = null; return;
+  }
+  if (draggedGuestId == null) return;
+  if (seatGuest(tableId, draggedGuestId)) render();
+  draggedGuestId = null;
+}
+
+function poolDragOver(e) {
+  e.preventDefault();
+  document.getElementById('unassigned-pool').style.background = 'var(--rose-light)';
+}
+function poolDragLeave() {
+  document.getElementById('unassigned-pool').style.background = '';
+}
+function poolDrop(e) {
+  e.preventDefault();
+  document.getElementById('unassigned-pool').style.background = '';
+  if (draggedGuestId == null) return;
+  tables.forEach(t => { t.seats = t.seats.map(s => s === draggedGuestId ? null : s); });
+  render(); draggedGuestId = null;
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function render() { renderStats(); renderPool(); renderTables(); }
+
+function renderStats() {
+  const total   = guests.length;
+  const seated  = tables.flatMap(t => t.seats.filter(Boolean)).length;
+  document.getElementById('total-guests-stat').textContent = `${total} guests`;
+  document.getElementById('seated-stat').textContent       = `${seated} seated`;
+  document.getElementById('tables-stat').textContent       = `${tables.length} tables`;
+  document.getElementById('unassigned-count').textContent  = total - seated;
+}
+
+function renderPool() {
+  const pool = document.getElementById('unassigned-pool');
+  const list = getUnassigned();
+  if (!list.length) {
+    pool.innerHTML = '<div style="color:var(--text-muted);font-style:italic;font-size:0.83rem;">All guests are seated 🎉</div>';
+    return;
+  }
+  pool.innerHTML = list.map(g => `
+    <div class="guest-chip" draggable="true"
+      ondragstart="handleDragStart(${g.id})" ondragend="handleDragEnd()">
+      <span>👤 ${esc(g.name)}</span>
+      <span class="chip-remove" onclick="removeGuest(${g.id})" title="Remove">×</span>
+    </div>`).join('');
+}
+
+// ─── Round Table SVG Renderer ─────────────────────────────────────────────────
+function renderRoundTable(t) {
+  const W = 280, H = 280, cx = 140, cy = 140;
+  const tableR  = 68;
+  const seatR   = 20;
+  const seatDist = 106; // center→seat center
+  const n       = t.size;
+  const filled  = t.seats.filter(Boolean).length;
+  const isFull  = filled >= n;
+
+  const tableStroke = isFull ? '#e07070' : '#c9748f';
+  const tableFill   = isFull ? '#fde8e8' : '#fdf0f3';
+  const innerR      = Math.round(tableR * 0.58);
+
+  // Short label for center
+  const centerLabel = t.name.length > 13 ? t.name.slice(0, 12) + '…' : t.name;
+
+  let seatsHtml = '';
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * 2 * Math.PI - Math.PI / 2; // start at top
+    const sx = +(cx + seatDist * Math.cos(angle)).toFixed(2);
+    const sy = +(cy + seatDist * Math.sin(angle)).toFixed(2);
+    const gId = t.seats[i];
+    const g   = gId ? getGuest(gId) : null;
+
+    if (g) {
+      // label: first name, max 8 chars
+      const label = g.name.split(' ')[0].slice(0, 8);
+      // × badge position (top-right of seat circle)
+      const bx = +(sx + seatR * 0.68).toFixed(2);
+      const by = +(sy - seatR * 0.68).toFixed(2);
+      seatsHtml += `
+        <g class="filled-seat" onpointerdown="seatPointerDown(event,${g.id})">
+          <title>${esc(g.name)}</title>
+          <circle class="seat-circle" cx="${sx}" cy="${sy}" r="${seatR}"
+            fill="#f5e6ea" stroke="#c9748f" stroke-width="2"/>
+          <text x="${sx}" y="${sy}" text-anchor="middle" dominant-baseline="middle"
+            font-size="8.5" fill="#5a2e3e" font-family="Georgia,serif"
+            style="pointer-events:none">${esc(label)}</text>
+          <circle class="remove-dot" cx="${bx}" cy="${by}" r="7.5"
+            fill="#e07070" stroke="white" stroke-width="1.5"
+            onclick="unseatGuest(${t.id},${g.id})"/>
+          <text class="remove-dot" x="${bx}" y="${by}" text-anchor="middle"
+            dominant-baseline="middle" font-size="11" fill="white"
+            style="pointer-events:none">×</text>
+        </g>`;
+    } else {
+      seatsHtml += `
+        <circle cx="${sx}" cy="${sy}" r="${seatR}"
+          fill="var(--cream)" stroke="#ddc8c8" stroke-width="1.5" stroke-dasharray="5 3"/>`;
+    }
+  }
+
+  return `
+    <div class="table-card ${isFull ? 'full' : ''}" id="tc-${t.id}"
+      ondragover="handleTableDragOver(event,${t.id})"
+      ondrop="handleTableDrop(event,${t.id})">
+      <div class="table-header">
+        <div class="table-name-wrap">
+          <span class="table-drag-handle" draggable="true"
+            ondragstart="handleTableDragStart(event,${t.id})"
+            ondragend="handleTableDragEnd()" title="Drag to reorder">⠿</span>
+          <span>🌸</span>
+          <input class="table-name-input" value="${esc(t.name)}"
+            onchange="updateTableName(${t.id},this.value)" title="Click to rename"/>
+        </div>
+        <span class="table-count ${isFull ? 'full' : ''}">${filled}/${n}</span>
+      </div>
+      <div class="round-table-body">
+        <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+          <!-- drop shadow -->
+          <circle cx="${cx}" cy="${cy + 5}" r="${tableR}" fill="rgba(180,100,120,0.09)"/>
+          <!-- table surface -->
+          <circle cx="${cx}" cy="${cy}" r="${tableR}" fill="${tableFill}" stroke="${tableStroke}" stroke-width="2.5"/>
+          <!-- decorative inner ring -->
+          <circle cx="${cx}" cy="${cy}" r="${innerR}" fill="none"
+            stroke="${isFull ? '#e9a0a0' : '#ecc0cc'}" stroke-width="1" stroke-dasharray="4 3"/>
+          <!-- table label -->
+          <text x="${cx}" y="${cy - 8}" text-anchor="middle"
+            font-size="12.5" fill="#a05570" font-family="Georgia,serif"
+            font-style="italic" font-weight="bold">${esc(centerLabel)}</text>
+          <text x="${cx}" y="${cy + 9}" text-anchor="middle"
+            font-size="9" fill="#9a7070" font-family="Georgia,serif">${filled}/${n}</text>
+          ${seatsHtml}
+        </svg>
+        ${!isFull ? `<p class="table-drop-hint">⬆ drag a guest here</p>` : ''}
+      </div>
+      <div class="table-footer">
+        <button class="btn btn-outline btn-sm" onclick="removeTable(${t.id})">🗑 Remove</button>
+      </div>
+    </div>`;
+}
+
+function renderTables() {
+  const grid = document.getElementById('tables-grid');
+  if (!tables.length) {
+    grid.innerHTML = `<div class="empty-state"><span class="big-emoji">🌸</span>No tables yet. Click <strong>+ Add Table</strong> to get started!</div>`;
+    return;
+  }
+  grid.innerHTML = tables.map(renderRoundTable).join('');
+}
+
+function renderTablesAnimated() {
+  const oldRects = {};
+  tables.forEach(t => { const el = document.getElementById('tc-' + t.id); if (el) oldRects[t.id] = el.getBoundingClientRect(); });
+  renderTables();
+  tables.forEach(t => {
+    const el = document.getElementById('tc-' + t.id);
+    if (!el || !oldRects[t.id]) return;
+    const r = el.getBoundingClientRect();
+    const dx = oldRects[t.id].left - r.left, dy = oldRects[t.id].top - r.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    el.style.transition = 'none';
+    el.style.transform = `translate(${dx}px,${dy}px)`;
+    el.offsetHeight; // force reflow
+    el.style.transition = 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)';
+    el.style.transform = '';
+  });
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+(async () => {
+  await loadData();
+  if (!tables.length) {
+    addTable('Table 1', 10);
+    addTable('Table 2', 10);
+    addTable('Table 3', 10);
+  }
+})();
+</script>
+</body>
+</html>
