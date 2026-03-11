@@ -281,6 +281,7 @@
     <div class="stat-chip" id="total-guests-stat">0 guests</div>
     <div class="stat-chip" id="seated-stat">0 seated</div>
     <div class="stat-chip gold" id="tables-stat">0 tables</div>
+    <span id="user-greeting" style="font-size:0.82rem;color:var(--text-muted);font-style:italic;"></span>
     <span id="collab-users" style="display:flex;gap:6px;align-items:center;"></span>
     <span class="sync-dot" id="sync-status" title="Sync status"></span>
     <button class="btn btn-gold" onclick="window.print()">🖨️ Print</button>
@@ -421,9 +422,13 @@ function showToast(msg) {
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-function showApp() {
+function showApp(email) {
   document.getElementById('auth-screen').classList.add('hidden');
   document.getElementById('signout-btn').style.display = '';
+  if (email) {
+    const name = email.split('@')[0];
+    document.getElementById('user-greeting').textContent = `Hello, ${name} 👋`;
+  }
 }
 
 function showAuthScreen() {
@@ -473,6 +478,7 @@ async function handleAuth() {
 async function signOut() {
   await sb.auth.signOut();
   guests = []; tables = []; gCounter = 0; tCounter = 0;
+  document.getElementById('user-greeting').textContent = '';
   render();
   showAuthScreen();
 }
@@ -991,7 +997,7 @@ function renderTablesAnimated() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 sb.auth.onAuthStateChange(async (event, session) => {
   if (session) {
-    showApp();
+    showApp(session.user.email);
     if (!_dataLoaded) {
       _dataLoaded = true;
       await loadData();
