@@ -36,6 +36,7 @@
       border-radius: 12px; padding: 3px 11px; font-size: 0.78rem; font-weight: 600;
     }
     .stat-chip.gold { background: var(--gold-light); color: #7a5a1e; }
+    .stat-chip.warn { background: #fde8e8; color: #c0392b; }
 
     /* ── BUTTONS ── */
     .btn {
@@ -48,6 +49,8 @@
     .btn-outline:hover { background: var(--rose-light); }
     .btn-gold { background: var(--gold); color: white; }
     .btn-gold:hover { background: #a8893e; }
+    .btn-danger { background: white; color: #c0392b; border: 2px solid #e07070; }
+    .btn-danger:hover { background: #fde8e8; }
     .btn-sm { padding: 4px 11px; font-size: 0.76rem; }
 
     /* ── LAYOUT ── */
@@ -84,6 +87,14 @@
     .csv-zone .csv-label { font-size: 0.85rem; color: var(--rose-dark); font-weight: 600; }
     .csv-zone .csv-hint { font-size: 0.73rem; color: var(--text-muted); }
 
+    /* Pool filter */
+    .pool-filter {
+      width: 100%; padding: 5px 10px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 0.83rem; font-family: inherit;
+      background: var(--cream); margin-bottom: 6px; outline: none; transition: border 0.18s;
+    }
+    .pool-filter:focus { border-color: var(--rose); }
+
     /* Unassigned pool */
     .unassigned-pool {
       display: flex; flex-direction: column; gap: 5px;
@@ -92,12 +103,18 @@
     .guest-chip {
       background: var(--gold-light); border: 1.5px dashed var(--gold); border-radius: 8px;
       padding: 5px 9px; font-size: 0.85rem; cursor: grab;
-      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      display: flex; align-items: center; justify-content: space-between; gap: 4px;
       transition: background 0.13s, transform 0.13s; user-select: none;
     }
     .guest-chip:active { cursor: grabbing; transform: scale(1.02); }
     .guest-chip:hover { background: #f0e3c0; }
-    .chip-remove { color: #c08080; cursor: pointer; font-size: 1rem; line-height: 1; flex-shrink: 0; }
+    .chip-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .chip-icon {
+      cursor: pointer; font-size: 0.85rem; line-height: 1; opacity: 0.55;
+      transition: opacity 0.13s; flex-shrink: 0;
+    }
+    .chip-icon:hover { opacity: 1; }
+    .chip-remove { color: #c08080; font-size: 1rem; }
     .chip-remove:hover { color: #a04040; }
 
     /* ── MAIN ── */
@@ -205,7 +222,7 @@
 
     /* ── PRINT ── */
     @media print {
-      header, .sidebar, .tables-toolbar .btn, .table-footer, .remove-dot, .chip-remove { display: none !important; }
+      header, .sidebar, .tables-toolbar .btn, .table-footer, .remove-dot, .chip-actions { display: none !important; }
       body { background: white; }
       .layout { grid-template-columns: 1fr; }
       .main { padding: 8px; }
@@ -260,14 +277,15 @@
 </head>
 <body>
 
-<div class="auth-screen" id="auth-screen">
+<div class="auth-screen" id="auth-screen" role="dialog" aria-label="Sign in">
   <div class="auth-card">
     <h2>💍 Wedding Seating</h2>
     <p id="auth-subtitle">Sign in to manage your seating chart</p>
-    <input type="email" id="auth-email" placeholder="Email" autocomplete="email" />
-    <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleAuth()" />
+    <input type="email" id="auth-email" placeholder="Email" autocomplete="email" aria-label="Email address" />
+    <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password"
+      aria-label="Password" onkeydown="if(event.key==='Enter')handleAuth()" />
     <button class="btn btn-primary" onclick="handleAuth()" id="auth-btn">Sign in</button>
-    <div class="auth-error" id="auth-error"></div>
+    <div class="auth-error" id="auth-error" role="alert" aria-live="polite"></div>
     <div class="auth-toggle">
       <span id="auth-toggle-text">Don't have an account?</span>
       <a onclick="toggleAuthMode()" id="auth-toggle-link">Sign up</a>
@@ -281,27 +299,32 @@
     <div class="stat-chip" id="total-guests-stat">0 guests</div>
     <div class="stat-chip" id="seated-stat">0 seated</div>
     <div class="stat-chip gold" id="tables-stat">0 tables</div>
-    <span id="user-greeting" style="font-size:0.82rem;color:var(--text-muted);font-style:italic;"></span>
-    <span id="collab-users" style="display:flex;gap:6px;align-items:center;"></span>
-    <span class="sync-dot" id="sync-status" title="Sync status"></span>
-    <button class="btn btn-gold" onclick="window.print()">🖨️ Print</button>
-    <button class="btn btn-outline btn-sm" onclick="signOut()" id="signout-btn" style="display:none">Sign out</button>
+    <div class="stat-chip warn" id="full-tables-stat" style="display:none">0 full</div>
+    <span id="user-greeting" style="font-size:0.82rem;color:var(--text-muted);font-style:italic;" aria-live="polite"></span>
+    <span id="collab-users" style="display:flex;gap:6px;align-items:center;" aria-label="Online collaborators"></span>
+    <span class="sync-dot" id="sync-status" title="Sync status" role="status" aria-label="Sync status"></span>
+    <button class="btn btn-outline btn-sm" id="undo-btn" onclick="undo()" title="Undo last action (Ctrl+Z)" style="display:none" aria-label="Undo last action">↩ Undo</button>
+    <button class="btn btn-outline btn-sm" onclick="exportCSV()" aria-label="Export seating to CSV">⬇ Export</button>
+    <button class="btn btn-gold" onclick="window.print()" aria-label="Print seating chart">🖨️ Print</button>
+    <button class="btn btn-outline btn-sm" onclick="signOut()" id="signout-btn" style="display:none" aria-label="Sign out">Sign out</button>
   </div>
 </header>
 
 <div class="layout">
 
   <!-- ── SIDEBAR ── -->
-  <aside class="sidebar">
+  <aside class="sidebar" aria-label="Guest management">
 
     <!-- CSV Upload -->
     <div class="sidebar-section">
       <h2>Import Guests</h2>
       <div class="csv-zone" id="csv-zone"
         onclick="document.getElementById('csv-file').click()"
-        ondragover="csvDragOver(event)" ondragleave="csvDragLeave(event)" ondrop="csvDrop(event)">
-        <input type="file" id="csv-file" accept=".csv,.txt" style="display:none" onchange="handleCSVFile(event)" />
-        <span class="csv-icon">📂</span>
+        ondragover="csvDragOver(event)" ondragleave="csvDragLeave(event)" ondrop="csvDrop(event)"
+        role="button" tabindex="0" aria-label="Upload CSV file"
+        onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('csv-file').click()">
+        <input type="file" id="csv-file" accept=".csv,.txt" style="display:none" onchange="handleCSVFile(event)" aria-hidden="true" />
+        <span class="csv-icon" aria-hidden="true">📂</span>
         <span class="csv-label">Upload CSV</span>
         <span class="csv-hint">Drop file or click · name / first+last columns</span>
       </div>
@@ -311,38 +334,48 @@
     <div class="sidebar-section">
       <h2>Add Guests</h2>
       <div class="input-row" style="margin-bottom:10px;">
-        <input type="text" id="guest-input" placeholder="Guest name…" onkeydown="if(event.key==='Enter')addGuest()" />
-        <button class="btn btn-primary" onclick="addGuest()">+ Add Guest</button>
+        <input type="text" id="guest-input" placeholder="Guest name…" aria-label="Guest name"
+          onkeydown="if(event.key==='Enter')addGuest()" />
+        <button class="btn btn-primary" onclick="addGuest()" aria-label="Add guest">+ Add Guest</button>
       </div>
       <div class="input-row">
-        <textarea id="bulk-input" placeholder="Bulk add: one name per line…" rows="3"></textarea>
-        <button class="btn btn-outline" onclick="bulkAddGuests()">+ Add All</button>
+        <textarea id="bulk-input" placeholder="Bulk add: one name per line…" rows="3"
+          aria-label="Guest names, one per line"></textarea>
+        <button class="btn btn-outline" onclick="bulkAddGuests()" aria-label="Add all guests from list">+ Add All</button>
       </div>
     </div>
 
     <!-- Unassigned pool -->
     <div class="sidebar-section">
       <h3>Unassigned (<span id="unassigned-count">0</span>)</h3>
-      <div class="unassigned-pool" id="unassigned-pool"
+      <input type="search" class="pool-filter" id="pool-filter" placeholder="Filter guests…"
+        oninput="_poolFilter=this.value;renderPool()" aria-label="Filter unassigned guests" />
+      <div class="unassigned-pool" id="unassigned-pool" role="list" aria-label="Unassigned guests"
         ondragover="poolDragOver(event)" ondragleave="poolDragLeave(event)" ondrop="poolDrop(event)">
         <div style="color:var(--text-muted);font-style:italic;font-size:0.83rem;">No unassigned guests</div>
       </div>
     </div>
 
+    <!-- Data actions -->
+    <div class="sidebar-section">
+      <button class="btn btn-danger btn-sm" style="width:100%"
+        onclick="clearAll()" aria-label="Clear all guests and tables">🗑 Clear All Data</button>
+    </div>
+
   </aside>
 
   <!-- ── MAIN ── -->
-  <main class="main">
+  <main class="main" aria-label="Tables">
     <div class="tables-toolbar">
       <h2>Tables</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-outline" onclick="openAddTableModal()">＋ Add Table</button>
-        <button class="btn btn-outline" onclick="autoAssign()">🎲 Auto-assign</button>
+        <button class="btn btn-outline" onclick="openAddTableModal()" aria-label="Add new table">＋ Add Table</button>
+        <button class="btn btn-outline" onclick="autoAssign()" aria-label="Auto-assign unassigned guests">🎲 Auto-assign</button>
       </div>
     </div>
-    <div class="tables-grid" id="tables-grid">
+    <div class="tables-grid" id="tables-grid" role="list" aria-label="Table list">
       <div class="empty-state">
-        <span class="big-emoji">🌸</span>
+        <span class="big-emoji" aria-hidden="true">🌸</span>
         No tables yet. Click <strong>+ Add Table</strong> to get started!
       </div>
     </div>
@@ -350,39 +383,46 @@
 </div>
 
 <!-- Add Table Modal -->
-<div class="modal-overlay hidden" id="add-table-modal">
+<div class="modal-overlay hidden" id="add-table-modal" role="dialog" aria-modal="true" aria-label="Add table">
   <div class="modal">
     <h3>New Table</h3>
-    <input type="text" id="table-name-input" placeholder="Table name (e.g. Rose, Table 1…)" />
-    <label style="font-size:0.83rem;color:var(--text-muted);display:block;margin-bottom:4px;">Seats (8–10)</label>
-    <select id="table-size-input">
+    <input type="text" id="table-name-input" placeholder="Table name (e.g. Rose, Table 1…)" aria-label="Table name" />
+    <label style="font-size:0.83rem;color:var(--text-muted);display:block;margin-bottom:4px;">Seats</label>
+    <select id="table-size-input" aria-label="Number of seats">
+      <option value="6">6 seats</option>
+      <option value="7">7 seats</option>
       <option value="8">8 seats</option>
       <option value="9">9 seats</option>
       <option value="10" selected>10 seats</option>
+      <option value="12">12 seats</option>
     </select>
     <label style="font-size:0.83rem;color:var(--text-muted);display:block;margin:8px 0 4px;">How many tables?</label>
-    <input type="number" id="table-count-input" value="1" min="1" max="20" style="margin-bottom:11px;" />
+    <input type="number" id="table-count-input" value="1" min="1" max="20"
+      aria-label="Number of tables to create" style="margin-bottom:11px;" />
     <div class="modal-actions">
-      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmAddTable()">Add Table</button>
+      <button class="btn btn-outline" onclick="closeModal()" aria-label="Cancel">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAddTable()" aria-label="Create table">Add Table</button>
     </div>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ─── State ────────────────────────────────────────────────────────────────────
-let guests  = [];   // { id, name }
-let tables  = [];   // { id, name, size, seats: [guestId|null, …] }
+let guests   = [];   // { id, name, note? }
+let tables   = [];   // { id, name, size, seats: [guestId|null, …] }
 let gCounter = 0, tCounter = 0;
+
+let _poolFilter = '';     // guest search filter string
+let _history    = [];     // undo snapshots (max 20)
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://ucokvtdtiymfddywivxv.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjb2t2dGR0aXltZmRkeXdpdnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMjA5MzQsImV4cCI6MjA4ODc5NjkzNH0.3dDVuwIEXtY-o4Ib1oajijt0WBWhd1LzQVLE6oy47YM';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-const ROW_ID = 'wedding';
+const ROW_ID    = 'wedding';
 const CLIENT_ID = Math.random().toString(36).slice(2);
 let authMode = 'signin';
 let _loading = false;
@@ -401,8 +441,11 @@ function setSyncStatus(state) {
   const el = document.getElementById('sync-status');
   if (!el) return;
   el.className = 'sync-dot ' + state;
-  el.title = { synced: 'All changes saved', pending: 'Unsaved changes…', saving: 'Saving…' }[state] || '';
+  const labels = { synced: 'All changes saved', pending: 'Unsaved changes…', saving: 'Saving…' };
+  el.title = labels[state] || '';
+  el.setAttribute('aria-label', 'Sync: ' + (labels[state] || state));
 }
+
 let draggedGuestId = null;
 let draggedTableId = null;
 
@@ -419,6 +462,25 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ─── Undo ─────────────────────────────────────────────────────────────────────
+function pushHistory() {
+  _history.push(JSON.stringify({ guests, tables, gCounter, tCounter }));
+  if (_history.length > 20) _history.shift();
+  const btn = document.getElementById('undo-btn');
+  if (btn) btn.style.display = '';
+}
+
+function undo() {
+  if (!_history.length) return;
+  const snap = JSON.parse(_history.pop());
+  guests = snap.guests; tables = snap.tables;
+  gCounter = snap.gCounter; tCounter = snap.tCounter;
+  render();
+  const btn = document.getElementById('undo-btn');
+  if (btn && !_history.length) btn.style.display = 'none';
+  showToast('Undone ↩');
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -477,7 +539,7 @@ async function handleAuth() {
 
 async function signOut() {
   await sb.auth.signOut();
-  guests = []; tables = []; gCounter = 0; tCounter = 0;
+  guests = []; tables = []; gCounter = 0; tCounter = 0; _history = [];
   document.getElementById('user-greeting').textContent = '';
   render();
   showAuthScreen();
@@ -494,16 +556,27 @@ async function saveData() {
   setSyncStatus(error ? 'pending' : 'synced');
   if (error) showToast('Save failed ✗');
 }
+
+// Returns true if existing data was loaded, false if this is a fresh/empty account
 async function loadData() {
   _loading = true;
   const { data, error } = await sb.from('seating_data').select('data').eq('id', ROW_ID).single();
-  if (!error && data) {
-    const d = data.data;
-    guests = d.guests || []; tables = d.tables || [];
-    gCounter = d.gCounter || 0; tCounter = d.tCounter || 0;
-    render();
-  }
   _loading = false;
+  if (error) {
+    // PGRST116 = "no rows returned" — expected for new users, not a real error
+    if (error.code !== 'PGRST116') showToast('Could not load saved data ✗');
+    return false;
+  }
+  if (data && data.data) {
+    const d = data.data;
+    guests   = d.guests   || [];
+    tables   = d.tables   || [];
+    gCounter = d.gCounter || 0;
+    tCounter = d.tCounter || 0;
+    render();
+    return true;
+  }
+  return false;
 }
 
 function subscribeRealtime() {
@@ -546,10 +619,48 @@ function updateOnlineBar(users) {
   el.innerHTML = users.map(u => `<span class="online-chip" title="${esc(u)}">🟢 ${esc(u.split('@')[0])}</span>`).join('');
 }
 
+// ─── Export ───────────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!guests.length) { showToast('No guests to export.'); return; }
+  const rows = [['Guest', 'Table', 'Seat', 'Note']];
+  tables.forEach(t => {
+    t.seats.forEach((gId, idx) => {
+      if (gId) {
+        const g = getGuest(gId);
+        if (g) rows.push([g.name, t.name, idx + 1, g.note || '']);
+      }
+    });
+  });
+  getUnassigned().forEach(g => rows.push([g.name, '(unassigned)', '', g.note || '']));
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'seating-chart.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Exported seating-chart.csv ✓');
+}
+
+// ─── Clear All ────────────────────────────────────────────────────────────────
+function clearAll() {
+  if (!guests.length && !tables.length) { showToast('Nothing to clear.'); return; }
+  if (!confirm(`Clear all ${guests.length} guests and ${tables.length} tables? This cannot be undone.`)) return;
+  pushHistory();
+  guests = []; tables = []; gCounter = 0; tCounter = 0;
+  _poolFilter = '';
+  const filterEl = document.getElementById('pool-filter');
+  if (filterEl) filterEl.value = '';
+  render();
+  showToast('All data cleared');
+}
+
 // ─── Guests ───────────────────────────────────────────────────────────────────
 function addGuest() {
   const el = document.getElementById('guest-input');
-  const name = el.value.trim(); if (!name) return;
+  const name = el.value.trim();
+  if (!name) return;
+  pushHistory();
   guests.push({ id: uid(), name });
   el.value = ''; el.focus(); render();
 }
@@ -558,13 +669,35 @@ function bulkAddGuests() {
   const ta = document.getElementById('bulk-input');
   const names = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
   if (!names.length) return;
+  pushHistory();
   names.forEach(n => guests.push({ id: uid(), name: n }));
   ta.value = ''; render(); showToast(`${names.length} guests added ✓`);
 }
 
 function removeGuest(gId) {
+  pushHistory();
   guests = guests.filter(g => g.id !== gId);
   tables.forEach(t => { t.seats = t.seats.map(s => s === gId ? null : s); });
+  render();
+}
+
+function editGuestName(gId) {
+  const g = getGuest(gId); if (!g) return;
+  const newName = prompt('Edit guest name:', g.name);
+  if (newName === null) return;
+  const trimmed = newName.trim();
+  if (!trimmed) { showToast('Name cannot be empty.'); return; }
+  pushHistory();
+  g.name = trimmed;
+  render();
+}
+
+function editGuestNote(gId) {
+  const g = getGuest(gId); if (!g) return;
+  const note = prompt(`Note for ${g.name} (dietary needs, etc.):`, g.note || '');
+  if (note === null) return;
+  pushHistory();
+  g.note = note.trim();
   render();
 }
 
@@ -597,10 +730,14 @@ function handleCSVFile(e) {
 function readCSVFile(file) {
   const reader = new FileReader();
   reader.onload = async ev => {
-    const count = parseCSV(ev.target.result);
+    pushHistory();
+    const { added, skipped } = parseCSV(ev.target.result);
     render();
-    showToast(count > 0 ? `${count} guests imported from CSV ✓` : 'No names found in CSV');
-    if (count > 0) { clearTimeout(_saveTimer); await saveData(); }
+    const msg = added > 0
+      ? `${added} guests imported${skipped > 0 ? ` · ${skipped} duplicate(s) skipped` : ''} ✓`
+      : skipped > 0 ? `All ${skipped} names already exist — nothing added.` : 'No names found in CSV';
+    showToast(msg);
+    if (added > 0) { clearTimeout(_saveTimer); await saveData(); }
   };
   reader.readAsText(file);
 }
@@ -619,24 +756,25 @@ function parseCSVLine(line) {
 
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  if (!lines.length) return 0;
+  if (!lines.length) return { added: 0, skipped: 0 };
 
   const rows = lines.map(parseCSVLine);
   const headerRow = rows[0].map(c => c.toLowerCase().replace(/['"]/g,''));
 
-  // Detect header line: if any cell looks like a label (non-numeric, short)
   const isHeader = headerRow.some(c =>
     /^[a-z\s_-]+$/.test(c) && c.length < 30 &&
     ['name','guest','first','last','prénom','nom','invité'].some(kw => c.includes(kw))
   );
   const dataStart = isHeader ? 1 : 0;
 
-  // Find useful column indices
   const nameIdx  = headerRow.findIndex(c => c === 'name' || c === 'full name' || c === 'guest name' || c === 'guest');
   const firstIdx = headerRow.findIndex(c => c.includes('first') || c === 'prénom');
   const lastIdx  = headerRow.findIndex(c => c.includes('last') || c === 'nom' || c === 'surname');
 
-  let added = 0;
+  // Build set of existing names for deduplication (case-insensitive)
+  const existingNames = new Set(guests.map(g => g.name.toLowerCase()));
+
+  let added = 0, skipped = 0;
   for (let i = dataStart; i < rows.length; i++) {
     const row = rows[i]; if (!row[0]) continue;
     let name = '';
@@ -646,9 +784,13 @@ function parseCSV(text) {
     else if (rows[0].length >= 2 && !isHeader && row[1]) name = `${row[0]} ${row[1]}`.trim();
     else                                    name = row[0];
     name = name.replace(/^["']|["']$/g, '').trim();
-    if (name) { guests.push({ id: uid(), name }); added++; }
+    if (!name) continue;
+    if (existingNames.has(name.toLowerCase())) { skipped++; continue; }
+    guests.push({ id: uid(), name });
+    existingNames.add(name.toLowerCase());
+    added++;
   }
-  return added;
+  return { added, skipped };
 }
 
 // ─── Tables ───────────────────────────────────────────────────────────────────
@@ -656,9 +798,18 @@ function addTable(name, size) {
   tables.push({ id: tid(), name, size: Number(size), seats: Array(Number(size)).fill(null) });
   render();
 }
+
 function removeTable(tableId) {
-  tables = tables.filter(t => t.id !== tableId); render();
+  const t = tables.find(t => t.id === tableId); if (!t) return;
+  const seatedCount = t.seats.filter(Boolean).length;
+  if (seatedCount > 0) {
+    if (!confirm(`Remove "${t.name}"? ${seatedCount} seated guest(s) will be returned to unassigned.`)) return;
+  }
+  pushHistory();
+  tables = tables.filter(t => t.id !== tableId);
+  render();
 }
+
 function updateTableName(tableId, name) {
   const t = tables.find(t => t.id === tableId); if (t) { t.name = name; scheduleSave(); }
 }
@@ -667,8 +818,8 @@ function updateTableSize(tableId, delta) {
   const t = tables.find(t => t.id === tableId); if (!t) return;
   const newSize = t.size + delta;
   if (newSize < 1 || newSize > 20) return;
+  pushHistory();
   if (delta < 0) {
-    // guests in removed seats go back to unassigned pool (seats array shrinks)
     t.seats = t.seats.slice(0, newSize);
   } else {
     t.seats.push(null);
@@ -688,6 +839,7 @@ function seatGuest(tableId, guestId) {
 
 function unseatGuest(tableId, guestId) {
   const table = tables.find(t => t.id === tableId); if (!table) return;
+  pushHistory();
   table.seats = table.seats.map(s => s === guestId ? null : s);
   render();
 }
@@ -695,6 +847,7 @@ function unseatGuest(tableId, guestId) {
 function autoAssign() {
   const unassigned = getUnassigned();
   if (!unassigned.length) { showToast('All guests are already seated!'); return; }
+  pushHistory();
   let placed = 0;
   for (const g of unassigned) {
     for (const t of tables) {
@@ -702,6 +855,7 @@ function autoAssign() {
     }
   }
   render();
+  scheduleSave();
   const left = getUnassigned().length;
   showToast(left > 0 ? `${placed} placed · ${left} still need tables` : `All guests seated! 🎉`);
 }
@@ -720,6 +874,7 @@ function confirmAddTable() {
   const baseName = document.getElementById('table-name-input').value.trim();
   const size  = document.getElementById('table-size-input').value;
   const count = Math.max(1, Math.min(20, parseInt(document.getElementById('table-count-input').value) || 1));
+  pushHistory();
   if (count === 1) {
     addTable(baseName || `Table ${tCounter + 1}`, size);
   } else {
@@ -733,6 +888,7 @@ document.getElementById('add-table-modal').addEventListener('click', e => { if (
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeModal();
   if (e.key === 'Enter' && !document.getElementById('add-table-modal').classList.contains('hidden')) confirmAddTable();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
 });
 
 // ─── Drag & Drop ──────────────────────────────────────────────────────────────
@@ -775,14 +931,16 @@ function ptrUp(e) {
   const tableCard = under.find(el => el.id && el.id.startsWith('tc-'));
   const inPool    = under.some(el => el.id === 'unassigned-pool');
   if (tableCard) {
-    if (seatGuest(parseInt(tableCard.id.slice(3)), ptrGuestId)) render();
+    pushHistory();
+    if (seatGuest(parseInt(tableCard.id.slice(3)), ptrGuestId)) { render(); scheduleSave(); }
   } else if (inPool) {
+    pushHistory();
     tables.forEach(t => { t.seats = t.seats.map(s => s === ptrGuestId ? null : s); });
-    render();
+    render(); scheduleSave();
   }
   ptrGuestId = null;
 }
-function handleDragEnd()      { document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); }
+function handleDragEnd() { document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); }
 
 function handleTableDragStart(e, tableId) {
   e.stopPropagation();
@@ -813,6 +971,7 @@ function handleTableDrop(e, tableId) {
       const fromIdx = tables.findIndex(t => t.id === draggedTableId);
       const toIdx   = tables.findIndex(t => t.id === tableId);
       if (fromIdx !== -1 && toIdx !== -1) {
+        pushHistory();
         const [moved] = tables.splice(fromIdx, 1); tables.splice(toIdx, 0, moved);
         renderStats(); renderPool(); renderTablesAnimated(); scheduleSave();
       }
@@ -820,6 +979,7 @@ function handleTableDrop(e, tableId) {
     draggedTableId = null; return;
   }
   if (draggedGuestId == null) return;
+  pushHistory();
   if (seatGuest(tableId, draggedGuestId)) render();
   draggedGuestId = null;
 }
@@ -835,79 +995,118 @@ function poolDrop(e) {
   e.preventDefault();
   document.getElementById('unassigned-pool').style.background = '';
   if (draggedGuestId == null) return;
+  pushHistory();
   tables.forEach(t => { t.seats = t.seats.map(s => s === draggedGuestId ? null : s); });
-  render(); draggedGuestId = null;
+  render(); scheduleSave();
+  draggedGuestId = null;
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 function render() { renderStats(); renderPool(); renderTables(); if (!_loading) scheduleSave(); }
 
 function renderStats() {
-  const total   = guests.length;
-  const seated  = tables.flatMap(t => t.seats.filter(Boolean)).length;
+  const total      = guests.length;
+  const seated     = tables.flatMap(t => t.seats.filter(Boolean)).length;
+  const fullCount  = tables.filter(t => t.seats.filter(Boolean).length >= t.size).length;
   document.getElementById('total-guests-stat').textContent = `${total} guests`;
   document.getElementById('seated-stat').textContent       = `${seated} seated`;
   document.getElementById('tables-stat').textContent       = `${tables.length} tables`;
   document.getElementById('unassigned-count').textContent  = total - seated;
+  const fullChip = document.getElementById('full-tables-stat');
+  if (fullChip) {
+    fullChip.textContent   = `${fullCount} full`;
+    fullChip.style.display = fullCount > 0 ? '' : 'none';
+  }
 }
 
 function renderPool() {
   const pool = document.getElementById('unassigned-pool');
-  const list = getUnassigned();
+  let list = getUnassigned();
+
+  const filter = (_poolFilter || '').trim().toLowerCase();
+  if (filter) list = list.filter(g => g.name.toLowerCase().includes(filter));
+
   if (!list.length) {
-    pool.innerHTML = '<div style="color:var(--text-muted);font-style:italic;font-size:0.83rem;">All guests are seated 🎉</div>';
+    if (filter && getUnassigned().length > 0) {
+      pool.innerHTML = `<div style="color:var(--text-muted);font-style:italic;font-size:0.83rem;">No matches for "${esc(filter)}"</div>`;
+    } else if (!getUnassigned().length && guests.length > 0) {
+      pool.innerHTML = '<div style="color:var(--text-muted);font-style:italic;font-size:0.83rem;">All guests are seated 🎉</div>';
+    } else {
+      pool.innerHTML = '<div style="color:var(--text-muted);font-style:italic;font-size:0.83rem;">No unassigned guests</div>';
+    }
     return;
   }
   pool.innerHTML = list.map(g => `
-    <div class="guest-chip" draggable="true"
+    <div class="guest-chip" draggable="true" role="listitem"
+      aria-label="${esc(g.name)}${g.note ? ', note: ' + esc(g.note) : ''}"
+      title="${esc(g.name)}${g.note ? '\n📝 ' + esc(g.note) : ''}"
       ondragstart="handleDragStart(${g.id})" ondragend="handleDragEnd()">
-      <span>👤 ${esc(g.name)}</span>
-      <span class="chip-remove" onclick="removeGuest(${g.id})" title="Remove">×</span>
+      ${g.note ? `<span style="width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block;flex-shrink:0;" title="${esc(g.note)}" aria-label="Has note"></span>` : ''}
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">👤 ${esc(g.name)}</span>
+      <span class="chip-actions">
+        <span class="chip-icon" onclick="editGuestNote(${g.id})"
+          title="${g.note ? 'Edit note: ' + esc(g.note) : 'Add note'}"
+          role="button" aria-label="${g.note ? 'Edit' : 'Add'} note for ${esc(g.name)}"
+          tabindex="0" onkeydown="if(event.key==='Enter')editGuestNote(${g.id})">📝</span>
+        <span class="chip-icon" onclick="editGuestName(${g.id})"
+          title="Rename guest" role="button" aria-label="Rename ${esc(g.name)}"
+          tabindex="0" onkeydown="if(event.key==='Enter')editGuestName(${g.id})">✏️</span>
+        <span class="chip-icon chip-remove" onclick="removeGuest(${g.id})"
+          title="Remove guest" role="button" aria-label="Remove ${esc(g.name)}"
+          tabindex="0" onkeydown="if(event.key==='Enter')removeGuest(${g.id})">×</span>
+      </span>
     </div>`).join('');
 }
 
 // ─── Round Table SVG Renderer ─────────────────────────────────────────────────
 function renderRoundTable(t) {
   const W = 280, H = 280, cx = 140, cy = 140;
-  const tableR  = 68;
-  const seatR   = 20;
-  const seatDist = 106; // center→seat center
-  const n       = t.size;
-  const filled  = t.seats.filter(Boolean).length;
-  const isFull  = filled >= n;
+  const tableR   = 68;
+  const seatR    = 20;
+  const seatDist = 106;
+  const n        = t.size;
+  const filled   = t.seats.filter(Boolean).length;
+  const isFull   = filled >= n;
 
   const tableStroke = isFull ? '#e07070' : '#c9748f';
   const tableFill   = isFull ? '#fde8e8' : '#fdf0f3';
   const innerR      = Math.round(tableR * 0.58);
-
-  // Short label for center
   const centerLabel = t.name.length > 13 ? t.name.slice(0, 12) + '…' : t.name;
 
   let seatsHtml = '';
   for (let i = 0; i < n; i++) {
-    const angle = (i / n) * 2 * Math.PI - Math.PI / 2; // start at top
+    const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
     const sx = +(cx + seatDist * Math.cos(angle)).toFixed(2);
     const sy = +(cy + seatDist * Math.sin(angle)).toFixed(2);
     const gId = t.seats[i];
     const g   = gId ? getGuest(gId) : null;
 
     if (g) {
-      // label: first name, max 8 chars
       const label = g.name.split(' ')[0].slice(0, 8);
-      // × badge position (top-right of seat circle)
       const bx = +(sx + seatR * 0.68).toFixed(2);
       const by = +(sy - seatR * 0.68).toFixed(2);
+      // Gold dot if guest has a note
+      const ndx = +(sx + seatR * 0.65).toFixed(2);
+      const ndy = +(sy + seatR * 0.65).toFixed(2);
+      const noteIndicator = g.note
+        ? `<circle cx="${ndx}" cy="${ndy}" r="5" fill="var(--gold)" stroke="white" stroke-width="1.2"
+             onclick="editGuestNote(${g.id})" style="cursor:pointer;pointer-events:all">
+             <title>📝 ${esc(g.note)}</title>
+           </circle>`
+        : '';
       seatsHtml += `
-        <g class="filled-seat" onpointerdown="seatPointerDown(event,${g.id})">
-          <title>${esc(g.name)}</title>
+        <g class="filled-seat" onpointerdown="seatPointerDown(event,${g.id})"
+          role="img" aria-label="${esc(g.name)}${g.note ? ', note: ' + esc(g.note) : ''}">
+          <title>${esc(g.name)}${g.note ? '\n📝 ' + esc(g.note) : ''}</title>
           <circle class="seat-circle" cx="${sx}" cy="${sy}" r="${seatR}"
             fill="#f5e6ea" stroke="#c9748f" stroke-width="2"/>
           <text x="${sx}" y="${sy}" text-anchor="middle" dominant-baseline="middle"
             font-size="8.5" fill="#5a2e3e" font-family="Georgia,serif"
             style="pointer-events:none">${esc(label)}</text>
+          ${noteIndicator}
           <circle class="remove-dot" cx="${bx}" cy="${by}" r="7.5"
             fill="#e07070" stroke="white" stroke-width="1.5"
-            onclick="unseatGuest(${t.id},${g.id})"/>
+            onclick="unseatGuest(${t.id},${g.id})" aria-label="Unseat ${esc(g.name)}"/>
           <text class="remove-dot" x="${bx}" y="${by}" text-anchor="middle"
             dominant-baseline="middle" font-size="11" fill="white"
             style="pointer-events:none">×</text>
@@ -915,43 +1114,47 @@ function renderRoundTable(t) {
     } else {
       seatsHtml += `
         <circle cx="${sx}" cy="${sy}" r="${seatR}"
-          fill="var(--cream)" stroke="#ddc8c8" stroke-width="1.5" stroke-dasharray="5 3"/>`;
+          fill="var(--cream)" stroke="#ddc8c8" stroke-width="1.5" stroke-dasharray="5 3"
+          aria-label="Empty seat"/>`;
     }
   }
 
   return `
-    <div class="table-card ${isFull ? 'full' : ''}" id="tc-${t.id}"
+    <div class="table-card ${isFull ? 'full' : ''}" id="tc-${t.id}" role="listitem"
+      aria-label="Table ${esc(t.name)}, ${filled} of ${n} seats filled"
       ondragover="handleTableDragOver(event,${t.id})"
       ondrop="handleTableDrop(event,${t.id})">
       <div class="table-header">
         <div class="table-name-wrap">
           <span class="table-drag-handle" draggable="true"
             ondragstart="handleTableDragStart(event,${t.id})"
-            ondragend="handleTableDragEnd()" title="Drag to reorder">⠿</span>
-          <span>🌸</span>
+            ondragend="handleTableDragEnd()"
+            title="Drag to reorder" aria-label="Reorder table">⠿</span>
+          <span aria-hidden="true">🌸</span>
           <input class="table-name-input" value="${esc(t.name)}"
-            onchange="updateTableName(${t.id},this.value)" title="Click to rename"/>
+            onchange="updateTableName(${t.id},this.value)"
+            title="Click to rename" aria-label="Table name"/>
         </div>
         <div style="display:flex;align-items:center;gap:3px;">
           <button onclick="updateTableSize(${t.id},-1)" title="Remove a seat"
+            aria-label="Remove a seat from ${esc(t.name)}"
             style="width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:0.85rem;line-height:1;color:var(--text-muted);display:flex;align-items:center;justify-content:center;padding:0;"
             ${n <= 1 ? 'disabled' : ''}>−</button>
-          <span class="table-count ${isFull ? 'full' : ''}">${filled}/${n}</span>
+          <span class="table-count ${isFull ? 'full' : ''}"
+            aria-label="${filled} of ${n} seats filled">${filled}/${n}</span>
           <button onclick="updateTableSize(${t.id},1)" title="Add a seat"
+            aria-label="Add a seat to ${esc(t.name)}"
             style="width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:0.85rem;line-height:1;color:var(--text-muted);display:flex;align-items:center;justify-content:center;padding:0;"
             ${n >= 20 ? 'disabled' : ''}>+</button>
         </div>
       </div>
       <div class="round-table-body">
-        <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-          <!-- drop shadow -->
+        <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"
+          role="img" aria-label="Round table diagram for ${esc(t.name)}">
           <circle cx="${cx}" cy="${cy + 5}" r="${tableR}" fill="rgba(180,100,120,0.09)"/>
-          <!-- table surface -->
           <circle cx="${cx}" cy="${cy}" r="${tableR}" fill="${tableFill}" stroke="${tableStroke}" stroke-width="2.5"/>
-          <!-- decorative inner ring -->
           <circle cx="${cx}" cy="${cy}" r="${innerR}" fill="none"
             stroke="${isFull ? '#e9a0a0' : '#ecc0cc'}" stroke-width="1" stroke-dasharray="4 3"/>
-          <!-- table label -->
           <text x="${cx}" y="${cy - 8}" text-anchor="middle"
             font-size="12.5" fill="#a05570" font-family="Georgia,serif"
             font-style="italic" font-weight="bold">${esc(centerLabel)}</text>
@@ -962,7 +1165,8 @@ function renderRoundTable(t) {
         ${!isFull ? `<p class="table-drop-hint">⬆ drag a guest here</p>` : ''}
       </div>
       <div class="table-footer">
-        <button class="btn btn-outline btn-sm" onclick="removeTable(${t.id})">🗑 Remove</button>
+        <button class="btn btn-outline btn-sm" onclick="removeTable(${t.id})"
+          aria-label="Remove table ${esc(t.name)}">🗑 Remove</button>
       </div>
     </div>`;
 }
@@ -970,7 +1174,7 @@ function renderRoundTable(t) {
 function renderTables() {
   const grid = document.getElementById('tables-grid');
   if (!tables.length) {
-    grid.innerHTML = `<div class="empty-state"><span class="big-emoji">🌸</span>No tables yet. Click <strong>+ Add Table</strong> to get started!</div>`;
+    grid.innerHTML = `<div class="empty-state"><span class="big-emoji" aria-hidden="true">🌸</span>No tables yet. Click <strong>+ Add Table</strong> to get started!</div>`;
     return;
   }
   grid.innerHTML = tables.map(renderRoundTable).join('');
@@ -988,7 +1192,7 @@ function renderTablesAnimated() {
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
     el.style.transition = 'none';
     el.style.transform = `translate(${dx}px,${dy}px)`;
-    el.offsetHeight; // force reflow
+    el.offsetHeight;
     el.style.transition = 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)';
     el.style.transform = '';
   });
@@ -1000,8 +1204,9 @@ sb.auth.onAuthStateChange(async (event, session) => {
     showApp(session.user.email);
     if (!_dataLoaded) {
       _dataLoaded = true;
-      await loadData();
-      if (!tables.length) {
+      const loaded = await loadData();
+      if (!loaded) {
+        // Fresh account — create default starter tables (no undo entry needed)
         addTable('Table 1', 10);
         addTable('Table 2', 10);
         addTable('Table 3', 10);
